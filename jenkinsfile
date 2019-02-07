@@ -1,0 +1,33 @@
+pipeline{
+    agent any
+    
+    environment{
+        
+    }
+
+    parameters{
+        string(name:'Repositorio', defaultValue: 'https://github.com/olsmca/Jenkins.git', description: "URL del Repositorio")
+        string(name:'Branch', defaultValue: 'master', description: "Branch a utilizar")
+    }
+
+stages{
+        stage("CheckOut"){
+            steps{
+                git branch: "$(params.Branch)"
+                echo "====++++executing Checkout++++===="
+            }
+            post{
+                always{
+                    echo "====++++always++++===="
+                }
+                success{
+                    echo "====++++Checkout executed succesfully++++===="
+                }
+                failure{
+                    echo "====++++Checkout execution failed++++===="
+                }
+        
+            }
+        }
+    }
+}
