@@ -1,33 +1,89 @@
+@library('Jenkins-pipeline-shared-library');
+
 pipeline{
     agent any
-    
-    environment{
-        
-    }
 
-    parameters{
-        string(name:'Repositorio', defaultValue: 'https://github.com/olsmca/Jenkins.git', description: "URL del Repositorio")
+    parameters{        
         string(name:'Branch', defaultValue: 'master', description: "Branch a utilizar")
+        string(name:'Repositorio', defaultValue: 'https://github.com/olsmca/Jenkins.git', description: "URL del Repositorio")
+        string(name:'teamDomain', defaultValue: 'negocio-eps', description: 'teamDomain a utilizar')
+        string(name:'channel', defaultValue: '#pipeline-as-code', description: 'channel a utilizar')
+        string(name:'token', defaultValue: 'kXvuJfAZwudfk6lHSxvduEaY', description: 'token a utilizar')
     }
 
-stages{
-        stage("CheckOut"){
-            steps{
-                git branch: "$(params.Branch)"
-                echo "====++++executing Checkout++++===="
-            }
-            post{
-                always{
-                    echo "====++++always++++===="
-                }
-                success{
-                    echo "====++++Checkout executed succesfully++++===="
-                }
-                failure{
-                    echo "====++++Checkout execution failed++++===="
-                }
-        
-            }
-        }
+stages {
+    stage('Checkout') {
+      steps {
+        echo 'Descargando Repositorio'
+        git branch: "${params.Branch}",
+            url: "${params.Repositorio}"
+      }
     }
+    stage('Build') {
+      post {
+        always {
+          echo 'One way or another, I have finished'
+        }
+
+        success {
+          echo 'Build generado con exito!'
+          slackSend(teamDomain: "${params.teamDomain}", channel: "${params.channel}", token: "${params.token}", color: 'good', message: "${currentBuild.fullDisplayName} completado con exito")
+          archiveArtifacts artifacts: '**/libs/*.jar', fingerprint: true 
+        }
+
+        unstable {
+          echo 'I am unstable :/'
+          slackSend(teamDomain: "${params.teamDomain}", channel: "${params.channel}", token: "${params.token}", color: 'warning', message: "${currentBuild.fullDisplayName} inestable.")
+        }
+
+        failure {
+          echo 'I failed :('
+
+        }
+
+        changed {
+          echo 'Things were different before...'
+
+        }
+
+      }
+      steps {
+        echo 'Compilando Proyecto BlueOcean'
+        sh ''' gradle clean
+                gradle bootJar
+           '''
+        scritp{
+            Hello h = new Hello();
+            echo h.hello('Jenkins')
+        }
+      }
+    }
+    stage('Aprobar Ejecucion') {
+      steps {
+        input 'Quiere ejecutar test'
+      }
+    }
+    stage('Test en Paralelo') {
+      parallel {
+        stage('Test Unitarios') {
+          steps {
+            sh 'gradle test'
+            junit 'build/test-results/**/*.xml'
+          }
+        }
+        stage('Test Integarcion') {
+          steps {
+            echo 'Ejecutando Test Integracion'
+          }
+        }
+      }
+    }
+    stage('Deploy') {
+      steps {
+        input 'Desea Desplegar en el Ambiente'
+        echo 'Desplegando'
+        deleteDir()
+      }
+    }
+  }
 }
