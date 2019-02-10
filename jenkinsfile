@@ -1,4 +1,4 @@
-@library('Jenkins-pipeline-shared-library');
+@Library('Jenkins-pipeline-shared-library') _ 
 
 pipeline{
     agent any
@@ -18,43 +18,28 @@ stages {
         git branch: "${params.Branch}",
             url: "${params.Repositorio}"
       }
-    }
-    stage('Build') {
       post {
         always {
-          echo 'One way or another, I have finished'
+          echo 'ejecutar siempre'
+          script {
+            slackNotifier(currentBuild.currentResult)
+          }
         }
-
-        success {
-          echo 'Build generado con exito!'
-          slackSend(teamDomain: "${params.teamDomain}", channel: "${params.channel}", token: "${params.token}", color: 'good', message: "${currentBuild.fullDisplayName} completado con exito")
-          archiveArtifacts artifacts: '**/libs/*.jar', fingerprint: true 
-        }
-
-        unstable {
-          echo 'I am unstable :/'
-          slackSend(teamDomain: "${params.teamDomain}", channel: "${params.channel}", token: "${params.token}", color: 'warning', message: "${currentBuild.fullDisplayName} inestable.")
-        }
-
-        failure {
-          echo 'I failed :('
-
-        }
-
-        changed {
-          echo 'Things were different before...'
-
-        }
-
       }
+    }
+    stage('Build') {
       steps {
-        echo 'Compilando Proyecto BlueOcean'
+        echo 'Compilando Proyecto'
         sh ''' gradle clean
                 gradle bootJar
            '''
-        scritp{
-            Hello h = new Hello();
-            echo h.hello('Jenkins')
+      }
+      post {
+        always {
+          archiveArtifacts artifacts: 'build/libs/**/*.jar', fingerprint: true
+          script {
+            slackNotifier(currentBuild.currentResult)
+          }
         }
       }
     }
@@ -70,10 +55,18 @@ stages {
             sh 'gradle test'
             junit 'build/test-results/**/*.xml'
           }
+          post {
+                always {
+                    echo 'llamado slacknotifier en libreria compartida'
+                    script {
+                        slackNotifier(currentBuild.currentResult)
+                    }
+                }
+            }
         }
-        stage('Test Integarcion') {
+        stage('Analisis de Sonar') {
           steps {
-            echo 'Ejecutando Test Integracion'
+            echo 'Ejecutando Analisis de codigo estatico'
           }
         }
       }
@@ -82,8 +75,18 @@ stages {
       steps {
         input 'Desea Desplegar en el Ambiente'
         echo 'Desplegando'
-        deleteDir()
       }
     }
   }
+  post {
+        always {
+            archiveArtifacts artifacts: 'build/test-results/**/*.xml', fingerprint: true
+            deleteDir()
+
+            echo 'llamado slacknotifier en libreria compartida'
+            script {
+                slackNotifier(currentBuild.currentResult)
+            }
+        }
+    }
 }
